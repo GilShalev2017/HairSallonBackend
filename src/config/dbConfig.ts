@@ -5,7 +5,6 @@ export const connectToDatabase = () => {
   const connectionString = isProduction
     ? process.env.AZURE_COSMOS_CONNECTIONSTRING
     : process.env.MONGODB_CONNECTION_STRING;
-    //: 'mongodb://localhost:27017/hair-salon';
 
   if (!connectionString) {
     console.error(
