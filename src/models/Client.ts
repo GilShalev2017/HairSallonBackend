@@ -36,6 +36,7 @@ const ColorSchema: Schema = new Schema({
 const JobSchema: Schema = new Schema({
   jobType: { type: String, required: true },
   price: { type: Number, required: true },
+  description: {type: String},
   colors: { type: [ColorSchema], default: [] },
 });
 
@@ -55,6 +56,14 @@ const ClientSchema: Schema = new Schema({
   address:{ type: String, required: false },
   treatments: { type: [TreatmentSchema], default: [] },
 });
+
+ClientSchema.pre<IClient>('save', function (next) {
+  if (this.treatments && this.treatments.length > 1) {
+    this.treatments.sort((a, b) => b.date.getTime() - a.date.getTime());
+  }
+  next();
+});
+
 
 const Client = mongoose.model<IClient>('Client', ClientSchema);
 export default Client;
