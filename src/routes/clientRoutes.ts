@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
-import Client, { ITreatment } from '../models/Client';
+import Client, { IClient, ITreatment } from '../models/Client';
+import { FilterQuery } from 'mongoose';
 
 const router = express.Router();
 
@@ -27,24 +28,64 @@ router.post('/clients', async (req: Request, res: Response) => {
 });
 
 //Searh for clients by first name and / or last name
+// router.get('/clients', async (req: Request, res: Response) => {
+
+//   const { firstName, lastName } = req.query;
+
+//   const query: any = {};
+
+//   if (firstName) query.firstName = new RegExp(firstName as string, 'i');
+
+//   if (lastName) query.lastName = new RegExp(lastName as string, 'i');
+
+//   try {
+
+//     const clients = await Client.find(query);
+
+//     res.send(clients);
+
+//   } catch (err) {
+
+//     res.status(500).send({ error: 'Failed to fetch clients', details: err });
+//   }
+// });
+
+
 router.get('/clients', async (req: Request, res: Response) => {
+  const searchQuery = req.query.searchQuery as string;
 
-  const { firstName, lastName } = req.query;
+  console.log(`Received request to search for client with searchQuery: ${searchQuery}`);
 
-  const query: any = {};
+  const query: FilterQuery<IClient> = {};
 
-  if (firstName) query.firstName = new RegExp(firstName as string, 'i');
+  if (searchQuery) {
+    const terms = searchQuery.trim().split(' ');
 
-  if (lastName) query.lastName = new RegExp(lastName as string, 'i');
+    console.log(`Found terms: ${terms}`);
+
+    if (terms.length === 2) {
+      query.$and = [
+        { firstName: new RegExp(`^${terms[0]}`, 'i') },
+        { lastName: new RegExp(`^${terms[1]}`, 'i') },
+      ];
+    } else if (terms.length === 1) {
+      query.$or = [
+        { firstName: new RegExp(`^${terms[0]}`, 'i') },
+        { lastName: new RegExp(`^${terms[0]}`, 'i') },
+      ];
+    }
+  }
 
   try {
-
+    
     const clients = await Client.find(query);
+
+    console.log(`Found clients: ${clients}`);
 
     res.send(clients);
 
   } catch (err) {
-
+    
     res.status(500).send({ error: 'Failed to fetch clients', details: err });
   }
 });
@@ -173,20 +214,20 @@ router.put('/clients/:clientId', async (req: Request<{ clientId: string }>, res:
 
 // Check client duplicity
 router.get('/clients/check-duplicate', async (req, res) => {
-  
+
   const { phone } = req.query;
-  
+
   console.log(`Received request to check if client exist by phone: ${phone}`);
 
   const existingClient = await Client.findOne({ phone });
-  
+
   if (existingClient) {
-  
+
     console.log(`Found client with the same phone: ${phone}`);
-  
+
     return res.status(200).json({ exists: true });
   }
-  
+
   return res.status(200).json({ exists: false });
 
 });

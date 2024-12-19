@@ -18,7 +18,7 @@ export interface ITreatment {
   jobs: IJob[];
 }
 
-interface IClient extends Document {
+export interface IClient extends Document {
   firstName: string;
   lastName: string;
   phone: string;
