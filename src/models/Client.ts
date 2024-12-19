@@ -22,7 +22,9 @@ interface IClient extends Document {
   firstName: string;
   lastName: string;
   phone: string;
-  email: string;
+  email?: string;
+  comment?: string;
+  address?: string;
   treatments: ITreatment[];
 }
 
@@ -47,8 +49,10 @@ const TreatmentSchema: Schema = new Schema({
 const ClientSchema: Schema = new Schema({
   firstName: { type: String, required: true },
   lastName: { type: String, required: true },
+  comment:{ type: String, required: false },
   phone: { type: String, required: true },
-  email: { type: String, required: true },
+  email: { type: String, required: false },
+  address:{ type: String, required: false },
   treatments: { type: [TreatmentSchema], default: [] },
 });
 
