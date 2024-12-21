@@ -1,9 +1,31 @@
 import express, { Request, Response } from 'express';
 import Client, { IClient, ITreatment } from '../models/Client';
 import { FilterQuery } from 'mongoose';
+import multer from 'multer';
+import { BlobServiceClient } from '@azure/storage-blob';
+import path from 'path';
+import fs from 'fs';
 
 const router = express.Router();
 
+const tempDir = path.join(__dirname, 'temp');
+if (!fs.existsSync(tempDir)) {
+  fs.mkdirSync(tempDir);
+}
+
+// Multer upload middleware setup
+const upload = multer({
+  dest: tempDir,  // Ensure multer uses the correct temp folder
+});
+
+// Azure Blob Storage Configuration
+const AZURE_STORAGE_CONNECTION_STRING = 'DefaultEndpointsProtocol=https;AccountName=hairsalonstorage;AccountKey=W2slXtC0HhDmZv2qV/YXYcDxPFOPTdsLNXcAeEimidnaj9z5JWOdtL28QKAgWLt9JmQYNmKcoBJt+AStky96pQ==;EndpointSuffix=core.windows.net';
+
+const CONTAINER_NAME = 'hairsalonconatainer';
+
+if (!AZURE_STORAGE_CONNECTION_STRING) {
+  throw new Error('Azure Storage connection string not found.');
+}
 // Add a client
 router.post('/clients', async (req: Request, res: Response) => {
 
@@ -28,29 +50,6 @@ router.post('/clients', async (req: Request, res: Response) => {
 });
 
 //Searh for clients by first name and / or last name
-// router.get('/clients', async (req: Request, res: Response) => {
-
-//   const { firstName, lastName } = req.query;
-
-//   const query: any = {};
-
-//   if (firstName) query.firstName = new RegExp(firstName as string, 'i');
-
-//   if (lastName) query.lastName = new RegExp(lastName as string, 'i');
-
-//   try {
-
-//     const clients = await Client.find(query);
-
-//     res.send(clients);
-
-//   } catch (err) {
-
-//     res.status(500).send({ error: 'Failed to fetch clients', details: err });
-//   }
-// });
-
-
 router.get('/clients', async (req: Request, res: Response) => {
   const searchQuery = req.query.searchQuery as string;
 
@@ -77,7 +76,7 @@ router.get('/clients', async (req: Request, res: Response) => {
   }
 
   try {
-    
+
     const clients = await Client.find(query);
 
     console.log(`Found clients: ${clients}`);
@@ -85,7 +84,7 @@ router.get('/clients', async (req: Request, res: Response) => {
     res.send(clients);
 
   } catch (err) {
-    
+
     res.status(500).send({ error: 'Failed to fetch clients', details: err });
   }
 });
@@ -232,6 +231,146 @@ router.get('/clients/check-duplicate', async (req, res) => {
 
 });
 
+const uploadToAzureBlob = async (filePath: string, fileName: string): Promise<string> => {
+  const blobServiceClient = BlobServiceClient.fromConnectionString(AZURE_STORAGE_CONNECTION_STRING);
+  const containerClient = blobServiceClient.getContainerClient(CONTAINER_NAME);
+  await containerClient.createIfNotExists();
+  const blobClient = containerClient.getBlockBlobClient(fileName);
+
+  try {
+    await blobClient.uploadFile(filePath);  // Upload the file from the correct path
+    console.log(`File uploaded successfully: ${fileName}`);
+    return blobClient.url;
+  } catch (err) {
+    console.error('Error uploading file to Azure Blob Storage:', err);
+    throw new Error('Failed to upload file');
+  }
+};
+
+// Endpoint to upload a file to Azure Blob Storage
+// router.post('/clients/upload', upload.single('image'), async (req, res) => {
+//   if (!req.file) {
+//     console.error('Error: No file uploaded.');
+//     return res.status(400).send({ error: 'No file uploaded.' });
+//   }
+
+//   // Directly use req.file.path without joining __dirname
+//   const tempFilePath = req.file.path;  // Multer already gives the relative path from the 'dest' directory
+//   const fileName = req.file.originalname;
+
+//   console.log(`Received request to upload file: ${fileName}`);
+//   console.log(`Temp file path: ${tempFilePath}`);
+
+//   try {
+//     const blobUrl = await uploadToAzureBlob(tempFilePath, fileName);
+//     console.log(`File uploaded successfully to Azure Blob Storage: ${blobUrl}`);
+
+//     res.status(200).send({
+//       message: 'File uploaded successfully.',
+//       fileUrl: blobUrl,
+//     });
+//   } catch (err) {
+//     console.error('Error uploading file to Azure Blob Storage:', err.stack || err);
+//     res.status(500).send({
+//       error: 'Error uploading file to Azure Blob Storage.',
+//       details: err,
+//     });
+//   } finally {
+//     try {
+//       // Correctly delete the temp file with the full path
+//       fs.unlinkSync(tempFilePath);
+//       console.log(`Temporary file deleted: ${tempFilePath}`);
+//     } catch (cleanupError) {
+//       console.error(`Error deleting temporary file: ${cleanupError}`);
+//     }
+//   }
+// });
+router.post('/clients/upload', upload.single('image'), async (req, res) => {
+  if (!req.file) {
+    console.error('Error: No file uploaded.');
+    return res.status(400).send({ error: 'No file uploaded.' });
+  }
+
+  // Get the clientId from the request body
+  const { clientId } = req.body;
+
+  if (!clientId) {
+    console.error('Error: No clientId provided.');
+    return res.status(400).send({ error: 'No clientId provided.' });
+  }
+
+  // Directly use req.file.path without joining __dirname
+  const tempFilePath = req.file.path;  // Multer already gives the relative path from the 'dest' directory
+  const fileName = req.file.originalname;
+
+  console.log(`Received request to upload file: ${fileName}`);
+  console.log(`Temp file path: ${tempFilePath}`);
+
+  try {
+    // Upload the file to Azure Blob Storage
+    const blobUrl = await uploadToAzureBlob(tempFilePath, fileName);
+    console.log(`File uploaded successfully to Azure Blob Storage: ${blobUrl}`);
+
+    // Find the client by its ID
+    const client = await Client.findById(clientId);
+
+    if (!client) {
+      console.error(`Error: Client with ID ${clientId} not found`);
+      return res.status(404).send({ error: 'Client not found' });
+    }
+
+    // Update the client's storage path (you can customize the field name)
+    client.storagePath = blobUrl; // Assuming you have a field `storagePath` in your Client schema
+
+    // Save the updated client document
+    await client.save();
+    console.log(`Updated client with new storage path: ${blobUrl}`);
+
+    res.status(200).send({
+      message: 'File uploaded successfully.',
+      fileUrl: blobUrl,
+      client: client,
+    });
+  } catch (err) {
+    console.error('Error uploading file to Azure Blob Storage:', err.stack || err);
+    res.status(500).send({
+      error: 'Error uploading file to Azure Blob Storage.',
+      details: err,
+    });
+  } finally {
+    try {
+      // Correctly delete the temp file with the full path
+      fs.unlinkSync(tempFilePath);
+      console.log(`Temporary file deleted: ${tempFilePath}`);
+    } catch (cleanupError) {
+      console.error(`Error deleting temporary file: ${cleanupError}`);
+    }
+  }
+});
+
+
 
 export default router;
 
+//Searh for clients by first name and / or last name
+// router.get('/clients', async (req: Request, res: Response) => {
+
+//   const { firstName, lastName } = req.query;
+
+//   const query: any = {};
+
+//   if (firstName) query.firstName = new RegExp(firstName as string, 'i');
+
+//   if (lastName) query.lastName = new RegExp(lastName as string, 'i');
+
+//   try {
+
+//     const clients = await Client.find(query);
+
+//     res.send(clients);
+
+//   } catch (err) {
+
+//     res.status(500).send({ error: 'Failed to fetch clients', details: err });
+//   }
+// });

@@ -55,6 +55,7 @@ const ClientSchema: Schema = new Schema({
   email: { type: String, required: false },
   address:{ type: String, required: false },
   treatments: { type: [TreatmentSchema], default: [] },
+  storagePath: { type: String, required: false },
 });
 
 ClientSchema.pre<IClient>('save', function (next) {
