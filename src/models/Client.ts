@@ -26,6 +26,7 @@ export interface IClient extends Document {
   comment?: string;
   address?: string;
   treatments: ITreatment[];
+  storagePath?: string;
 }
 
 const ColorSchema: Schema = new Schema({

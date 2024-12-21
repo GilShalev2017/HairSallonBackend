@@ -331,7 +331,7 @@ router.post('/clients/upload', upload.single('image'), async (req, res) => {
       fileUrl: blobUrl,
       client: client,
     });
-  } catch (err) {
+  } catch (err:any) {
     console.error('Error uploading file to Azure Blob Storage:', err.stack || err);
     res.status(500).send({
       error: 'Error uploading file to Azure Blob Storage.',
