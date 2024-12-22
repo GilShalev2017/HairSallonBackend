@@ -5,8 +5,11 @@ import multer from 'multer';
 import { BlobServiceClient } from '@azure/storage-blob';
 import path from 'path';
 import fs from 'fs';
+import dotenv from 'dotenv';
 
 const router = express.Router();
+
+dotenv.config();
 
 const tempDir = path.join(__dirname, 'temp');
 if (!fs.existsSync(tempDir)) {
@@ -19,7 +22,7 @@ const upload = multer({
 });
 
 // Azure Blob Storage Configuration
-const AZURE_STORAGE_CONNECTION_STRING = 'DefaultEndpointsProtocol=https;AccountName=hairsalonstorage;AccountKey=W2slXtC0HhDmZv2qV/YXYcDxPFOPTdsLNXcAeEimidnaj9z5JWOdtL28QKAgWLt9JmQYNmKcoBJt+AStky96pQ==;EndpointSuffix=core.windows.net';
+const AZURE_STORAGE_CONNECTION_STRING =  process.env.AZURE_STORAGE_CONNECTION_STRING;
 
 const CONTAINER_NAME = 'hairsalonconatainer';
 
@@ -247,44 +250,6 @@ const uploadToAzureBlob = async (filePath: string, fileName: string): Promise<st
   }
 };
 
-// Endpoint to upload a file to Azure Blob Storage
-// router.post('/clients/upload', upload.single('image'), async (req, res) => {
-//   if (!req.file) {
-//     console.error('Error: No file uploaded.');
-//     return res.status(400).send({ error: 'No file uploaded.' });
-//   }
-
-//   // Directly use req.file.path without joining __dirname
-//   const tempFilePath = req.file.path;  // Multer already gives the relative path from the 'dest' directory
-//   const fileName = req.file.originalname;
-
-//   console.log(`Received request to upload file: ${fileName}`);
-//   console.log(`Temp file path: ${tempFilePath}`);
-
-//   try {
-//     const blobUrl = await uploadToAzureBlob(tempFilePath, fileName);
-//     console.log(`File uploaded successfully to Azure Blob Storage: ${blobUrl}`);
-
-//     res.status(200).send({
-//       message: 'File uploaded successfully.',
-//       fileUrl: blobUrl,
-//     });
-//   } catch (err) {
-//     console.error('Error uploading file to Azure Blob Storage:', err.stack || err);
-//     res.status(500).send({
-//       error: 'Error uploading file to Azure Blob Storage.',
-//       details: err,
-//     });
-//   } finally {
-//     try {
-//       // Correctly delete the temp file with the full path
-//       fs.unlinkSync(tempFilePath);
-//       console.log(`Temporary file deleted: ${tempFilePath}`);
-//     } catch (cleanupError) {
-//       console.error(`Error deleting temporary file: ${cleanupError}`);
-//     }
-//   }
-// });
 router.post('/clients/upload', upload.single('image'), async (req, res) => {
   if (!req.file) {
     console.error('Error: No file uploaded.');
