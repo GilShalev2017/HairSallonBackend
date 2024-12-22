@@ -1,6 +1,8 @@
 # Ignore the dist folder
 dist/
 
+temp/
+
 # Ignore node_modules directory
 node_modules/
 
