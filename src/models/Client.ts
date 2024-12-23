@@ -12,6 +12,7 @@ export interface IJob {
 }
 
 export interface ITreatment {
+  _id?: string; 
   date: Date;
   remark?: string;
   totalPrice: number;

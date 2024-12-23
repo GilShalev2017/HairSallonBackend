@@ -6,6 +6,7 @@ import { BlobServiceClient } from '@azure/storage-blob';
 import path from 'path';
 import fs from 'fs';
 import dotenv from 'dotenv';
+import mongoose from 'mongoose';
 
 const router = express.Router();
 
@@ -22,7 +23,7 @@ const upload = multer({
 });
 
 // Azure Blob Storage Configuration
-const AZURE_STORAGE_CONNECTION_STRING =  process.env.AZURE_STORAGE_CONNECTION_STRING;
+const AZURE_STORAGE_CONNECTION_STRING = process.env.AZURE_STORAGE_CONNECTION_STRING;
 
 const CONTAINER_NAME = 'hairsalonconatainer';
 
@@ -250,6 +251,7 @@ const uploadToAzureBlob = async (filePath: string, fileName: string): Promise<st
   }
 };
 
+//Upload an image and saving it to client
 router.post('/clients/upload', upload.single('image'), async (req, res) => {
   if (!req.file) {
     console.error('Error: No file uploaded.');
@@ -296,7 +298,7 @@ router.post('/clients/upload', upload.single('image'), async (req, res) => {
       fileUrl: blobUrl,
       client: client,
     });
-  } catch (err:any) {
+  } catch (err: any) {
     console.error('Error uploading file to Azure Blob Storage:', err.stack || err);
     res.status(500).send({
       error: 'Error uploading file to Azure Blob Storage.',
@@ -313,7 +315,46 @@ router.post('/clients/upload', upload.single('image'), async (req, res) => {
   }
 });
 
+//Delete a treatment
+router.delete('/treatments/:clientId/:treatmentId', async (req: Request<{ clientId: string, treatmentId: string }>, res: Response) => {
+  try {
+    const { clientId, treatmentId } = req.params;
 
+    console.log(`Received request to delete treatment for client ID: ${clientId} treatment ID: ${treatmentId}`);
+
+    // Find the client by ID
+    const client = await Client.findById(clientId);
+
+    if (!client) {
+      return res.status(404).send({ error: 'Client not found' });
+    }
+
+    // Convert treatmentId to an ObjectId
+    const treatmentObjectId = new mongoose.Types.ObjectId(treatmentId);
+
+    // Find the index of the treatment to delete
+    const treatmentIndex = client.treatments.findIndex((treatment) =>
+      new mongoose.Types.ObjectId(treatment._id).equals(treatmentObjectId)
+    );
+
+    if (treatmentIndex === -1) {
+      return res.status(404).send({ error: 'Treatment not found' });
+    }
+
+    // Remove the treatment from the treatments array
+    const deletedTreatment = client.treatments.splice(treatmentIndex, 1);
+
+    // Save the updated client document
+    await client.save();
+
+    console.log(`Successfully deleted treatment with ID: ${treatmentId} for client ID: ${clientId}`);
+
+    res.status(200).send({ message: 'Treatment deleted successfully', deletedTreatment });
+  } catch (err: any) {
+    console.error('Error deleting treatment:', err);
+    res.status(500).send({ error: 'Failed to delete treatment', details: err.message });
+  }
+});
 
 export default router;
 
