@@ -30,7 +30,7 @@ const CONTAINER_NAME = 'hairsalonconatainer';
 if (!AZURE_STORAGE_CONNECTION_STRING) {
   throw new Error('Azure Storage connection string not found.');
 }
-// Add a client
+// Add client
 router.post('/clients', async (req: Request, res: Response) => {
 
   try {
@@ -50,6 +50,63 @@ router.post('/clients', async (req: Request, res: Response) => {
     console.error(`Error: Client failed to save. details: ${err}`);
 
     res.status(400).send({ error: 'Failed to create client', details: err });
+  }
+});
+
+//Update client
+router.put('/clients/:clientId', async (req: Request<{ clientId: string }>, res: Response) => {
+
+  const { clientId } = req.params;
+
+  try {
+
+    const updateData = req.body;
+
+    console.log(`Received request to update client with ID: ${clientId}`);
+
+    const updatedClient = await Client.findByIdAndUpdate(clientId, updateData, {
+      new: true,       // Return the updated document
+      runValidators: true, // Ensure the update adheres to the schema
+    });
+
+    if (!updatedClient) {
+      return res.status(404).send({ error: 'Client not found' });
+    }
+
+    console.log(`Successfully updated client with ID: ${clientId}`);
+
+    res.status(200).send({ message: 'Client updated successfully', client: updatedClient });
+
+  } catch (err) {
+
+    console.error(`Error updating client with ID: ${clientId}`, err);
+
+    res.status(500).send({ error: 'Failed to update client', details: err });
+  }
+});
+
+//Delete client
+router.delete('/clients/:clientId', async (req: Request<{ clientId: string }>, res: Response) => {
+
+  try {
+    const { clientId } = req.params;
+
+    console.log(`Received request to delete client for client ID: ${clientId}`);
+
+    const deletedClient = await Client.findByIdAndDelete(clientId);
+
+    if (!deletedClient) {
+      return res.status(404).send({ error: 'Client not found' });
+    }
+
+    console.log(`Successfully deleted client with ID: ${clientId}`);
+
+    res.status(200).send({ message: 'Client deleted successfully', client: deletedClient });
+
+  } catch (err) {
+
+    res.status(500).send({ error: 'Failed to delete client', details: err });
+
   }
 });
 
@@ -158,62 +215,107 @@ router.post('/clients/:clientId/treatments', async (req: Request, res: Response)
 
 });
 
-//Delete a client
-router.delete('/clients/:clientId', async (req: Request<{ clientId: string }>, res: Response) => {
+//Update Treatment
+router.put('/treatments/:clientId/:treatmentId',  async (req: Request<{ clientId: string; treatmentId: string }>, res: Response) => {
+    try {
+      const { clientId, treatmentId } = req.params;
+      const treatmentUpdates = req.body;
+
+      console.log(`Received request to update treatment for client ID: ${clientId}, treatment ID: ${treatmentId}`);
+
+      // Find the client by ID
+      const client = await Client.findById(clientId);
+
+      if (!client) {
+        return res.status(404).send({ error: 'Client not found' });
+      }
+
+      // Find the treatment by ID
+      const treatmentObjectId = new mongoose.Types.ObjectId(treatmentId);
+
+      // Find the treatment in the array
+      const foundTreatment = client.treatments.find((treatmentElement) =>
+        new mongoose.Types.ObjectId(treatmentElement._id).equals(treatmentObjectId)
+      );
+
+      if (!foundTreatment) {
+        return res.status(404).send({ error: 'Treatment not found' });
+      }
+
+      // Apply the updates to the treatment
+      Object.assign(foundTreatment, treatmentUpdates);
+
+      // Save the updated client document
+      await client.save();
+
+      console.log(`Successfully updated treatment with ID: ${treatmentId} for client ID: ${clientId}`);
+
+      res.status(200).send({ message: 'Treatment updated successfully', updatedTreatment: foundTreatment });
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        console.error('Error: Failed to update treatment', err.stack);
+        res.status(500).send({ error: 'Failed to update treatment', details: err.message });
+      } else {
+        console.error('An unknown error occurred:', err);
+        res.status(500).send({ error: 'Failed to update treatment' });
+      }
+    }
+  }
+);
+
+//Delete treatment
+router.delete('/treatments/:clientId/:treatmentId', async (req: Request<{ clientId: string, treatmentId: string }>, res: Response) => {
 
   try {
-    const { clientId } = req.params;
 
-    console.log(`Received request to delete client for client ID: ${clientId}`);
+    const { clientId, treatmentId } = req.params;
 
-    const deletedClient = await Client.findByIdAndDelete(clientId);
+    console.log(`Received request to delete treatment for client ID: ${clientId} treatment ID: ${treatmentId}`);
 
-    if (!deletedClient) {
+    // Find the client by ID
+    const client = await Client.findById(clientId);
+
+    if (!client) {
+
       return res.status(404).send({ error: 'Client not found' });
+
     }
 
-    console.log(`Successfully deleted client with ID: ${clientId}`);
+    // Convert treatmentId to an ObjectId
+    const treatmentObjectId = new mongoose.Types.ObjectId(treatmentId);
 
-    res.status(200).send({ message: 'Client deleted successfully', client: deletedClient });
+    // Find the index of the treatment to delete
+    const treatmentIndex = client.treatments.findIndex((treatment) =>
 
-  } catch (err) {
+      new mongoose.Types.ObjectId(treatment._id).equals(treatmentObjectId)
 
-    res.status(500).send({ error: 'Failed to delete client', details: err });
+    );
 
-  }
-});
+    if (treatmentIndex === -1) {
 
-//Update a client
-router.put('/clients/:clientId', async (req: Request<{ clientId: string }>, res: Response) => {
+      return res.status(404).send({ error: 'Treatment not found' });
 
-  const { clientId } = req.params;
-
-  try {
-
-    const updateData = req.body;
-
-    console.log(`Received request to update client with ID: ${clientId}`);
-
-    const updatedClient = await Client.findByIdAndUpdate(clientId, updateData, {
-      new: true,       // Return the updated document
-      runValidators: true, // Ensure the update adheres to the schema
-    });
-
-    if (!updatedClient) {
-      return res.status(404).send({ error: 'Client not found' });
     }
 
-    console.log(`Successfully updated client with ID: ${clientId}`);
+    // Remove the treatment from the treatments array
+    const deletedTreatment = client.treatments.splice(treatmentIndex, 1);
 
-    res.status(200).send({ message: 'Client updated successfully', client: updatedClient });
+    // Save the updated client document
+    await client.save();
 
-  } catch (err) {
+    console.log(`Successfully deleted treatment with ID: ${treatmentId} for client ID: ${clientId}`);
 
-    console.error(`Error updating client with ID: ${clientId}`, err);
+    res.status(200).send({ message: 'Treatment deleted successfully', deletedTreatment });
 
-    res.status(500).send({ error: 'Failed to update client', details: err });
+  } catch (err: any) {
+
+    console.error('Error deleting treatment:', err);
+
+    res.status(500).send({ error: 'Failed to delete treatment', details: err.message });
   }
+
 });
+
 
 // Check client duplicity
 router.get('/clients/check-duplicate', async (req, res) => {
@@ -235,6 +337,7 @@ router.get('/clients/check-duplicate', async (req, res) => {
 
 });
 
+//Upload an image to azure blob
 const uploadToAzureBlob = async (filePath: string, fileName: string): Promise<string> => {
   const blobServiceClient = BlobServiceClient.fromConnectionString(AZURE_STORAGE_CONNECTION_STRING);
   const containerClient = blobServiceClient.getContainerClient(CONTAINER_NAME);
@@ -315,46 +418,6 @@ router.post('/clients/upload', upload.single('image'), async (req, res) => {
   }
 });
 
-//Delete a treatment
-router.delete('/treatments/:clientId/:treatmentId', async (req: Request<{ clientId: string, treatmentId: string }>, res: Response) => {
-  try {
-    const { clientId, treatmentId } = req.params;
-
-    console.log(`Received request to delete treatment for client ID: ${clientId} treatment ID: ${treatmentId}`);
-
-    // Find the client by ID
-    const client = await Client.findById(clientId);
-
-    if (!client) {
-      return res.status(404).send({ error: 'Client not found' });
-    }
-
-    // Convert treatmentId to an ObjectId
-    const treatmentObjectId = new mongoose.Types.ObjectId(treatmentId);
-
-    // Find the index of the treatment to delete
-    const treatmentIndex = client.treatments.findIndex((treatment) =>
-      new mongoose.Types.ObjectId(treatment._id).equals(treatmentObjectId)
-    );
-
-    if (treatmentIndex === -1) {
-      return res.status(404).send({ error: 'Treatment not found' });
-    }
-
-    // Remove the treatment from the treatments array
-    const deletedTreatment = client.treatments.splice(treatmentIndex, 1);
-
-    // Save the updated client document
-    await client.save();
-
-    console.log(`Successfully deleted treatment with ID: ${treatmentId} for client ID: ${clientId}`);
-
-    res.status(200).send({ message: 'Treatment deleted successfully', deletedTreatment });
-  } catch (err: any) {
-    console.error('Error deleting treatment:', err);
-    res.status(500).send({ error: 'Failed to delete treatment', details: err.message });
-  }
-});
 
 export default router;
 
